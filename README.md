@@ -64,24 +64,27 @@ The notebook loads `nyu-mll/glue`, configuration `sst2`, with Hugging Face Datas
 │   ├── test_app.py
 │   └── test_predict.py
 ├── requirements.txt
+├── requirements-lock.txt                # exact Windows/Python 3.13 CPU environment
 └── README.md
 ```
 
-Generated checkpoints, cached datasets, and run records stay in ignored `models/` and `results/` folders. The current trained model is local at `models/best_model/`; the selected Trainer checkpoint is `results/baseline_15k_bs8/checkpoint-3750/`. Model weights are intentionally not committed.
+The fine-tuned model is **not included in Git**. Model/checkpoint directories are ignored, and there is no verified fine-tuned checkpoint download URL. The current working copy has a local model at `models/best_model/`, but a fresh clone will not have it. Inference defaults to the exact directory `models/best_model/` (`src/predict.py: DEFAULT_MODEL_DIR`).
 
 ## Setup
 
-Use Python 3.11 or later. This project was verified with Python 3.13.17, PyTorch 2.15.0+cu132, CUDA 13.2, and the RTX 4050 Laptop GPU. For this checkout, activate the existing shared virtual environment one directory above the repository; do not create another environment:
+Use Python 3.13 on Windows (the saved training run used 3.13.17). From the repository root, create and install the exact CPU inference/test dependency snapshot:
 
 ```powershell
-cd C:\Users\mittu\Documents\GitHub-Projects\bert-sst2-finetuning
-..\.venv\Scripts\Activate.ps1
+python --version  # confirm Python 3.13
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-lock.txt
 python -m pip check
 ```
 
-For a new machine, create one virtual environment, install a matching PyTorch CPU/CUDA build using the [official selector](https://pytorch.org/get-started/locally/), and then install `requirements.txt`. The requirements include PyTorch so that fresh installs have the runtime; pip leaves an already-satisfied CUDA build in place. Avoid replacing a working CUDA wheel with a CPU-only build.
+`requirements-lock.txt` pins the verified Python 3.13 Windows environment, including PyTorch 2.15.0 CPU, Transformers 5.22.2, and Datasets 4.8.5. It supports CPU inference and all automated tests. `requirements.txt` keeps the supported version ranges for general environments. Installing dependencies alone does not provide the fine-tuned weights.
 
-For CPU-only inference, install the CPU PyTorch build. For GPU training, use a compatible NVIDIA driver and CUDA-enabled PyTorch. The notebook checks CUDA and stops instead of silently running a full training job on CPU. A GPU is recommended; the measured run used an RTX 4050 Laptop GPU with 6 GiB VRAM.
+The verified training run used PyTorch 2.15.0+cu132 with CUDA 13.2 on an NVIDIA GeForce RTX 4050 Laptop GPU (6 GiB VRAM). For CUDA training, create a separate environment and install the matching CUDA-enabled PyTorch build using the [official PyTorch selector](https://pytorch.org/get-started/locally/), then install `requirements.txt`. Do not install the CPU lock into that GPU environment. The notebook checks CUDA and stops instead of silently running full training on CPU.
 
 The public dataset and pretrained weights download on first use, so initial training needs internet access. No Hugging Face token is required for these public files.
 
@@ -96,7 +99,7 @@ Open and run `notebooks/bert_sst2_finetuning.ipynb` top to bottom. The executed 
 
 The baseline run used 15,000 training examples, max length 128, 2 epochs, batch size 8, evaluation batch size 8, FP16, learning rate `2e-5`, weight decay `0.01`, gradient accumulation 1, linear decay, 375 warmup steps, seed 42, and gradient clipping at 1.0. Checkpoint selection uses validation F1. If CUDA OOM occurs, the notebook clears memory and retries with batch size 4, then batch 4 with gradient checkpointing. It does not silently switch to CPU.
 
-The notebook calls `load_dataset("nyu-mll/glue", "sst2")`. If prior outputs exist, each new notebook run uses a timestamped results/model directory to preserve them; use the saved `run_config.json` to find that run’s model path. For local Jupyter, install Jupyter separately with `python -m pip install jupyter` if it is not already available, then run:
+The notebook calls `load_dataset("nyu-mll/glue", "sst2")`, downloads public GLUE SST-2 data and pretrained `bert-base-uncased` weights, then saves the fine-tuned model and tokenizer to the fixed `models/best_model/` directory. Trainer checkpoints and run records are written under `results/baseline_15k/`. Running the notebook again may replace files at those paths. The notebook requires a CUDA-enabled PyTorch environment and a compatible GPU; it does not provide a CPU-training fallback. This notebook is the repository's procedure for generating a new fine-tuned model. It does not reproduce byte-identical weights from the ignored local model associated with the documented metrics, and no separate fine-tuned model download procedure is provided. A fresh clone therefore needs a compatible GPU training run (or a separately obtained compatible model directory) before inference. For local Jupyter, install Jupyter separately with `python -m pip install jupyter` if it is not already available, then run:
 
 ```powershell
 jupyter notebook notebooks/bert_sst2_finetuning.ipynb
@@ -104,7 +107,7 @@ jupyter notebook notebooks/bert_sst2_finetuning.ipynb
 
 ## Inference
 
-After training has saved the local model:
+After cloning, create the CUDA training environment described above and run `notebooks/bert_sst2_finetuning.ipynb` from top to bottom. Confirm that the notebook's final save cell created `models/best_model/` with `config.json`, model weights (`model.safetensors` or `pytorch_model.bin`), and tokenizer files. Then activate an inference environment with the project dependencies (the CPU `requirements-lock.txt` is sufficient for inference), return to the repository root, and run:
 
 ```powershell
 python -m src.predict --model-dir models/best_model "A delightful, moving film." "A dull and predictable movie."

@@ -149,6 +149,13 @@ def test_model_loading_sets_eval_mode(tmp_path, monkeypatch):
     transformers.AutoTokenizer = FakeAutoTokenizer
     monkeypatch.setitem(sys.modules, "transformers", transformers)
 
+    # Keep this unit test independent of the large PyTorch runtime. The loader
+    # only needs device selection and the model's ``to``/``eval`` methods here.
+    torch = types.ModuleType("torch")
+    torch.device = lambda name: name
+    torch.cuda = SimpleNamespace(is_available=lambda: False)
+    monkeypatch.setitem(sys.modules, "torch", torch)
+
     model, tokenizer = load_model(tmp_path, device="cpu")
     assert model is loaded
     assert tokenizer is not None
